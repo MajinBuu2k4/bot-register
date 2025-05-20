@@ -1,7 +1,6 @@
 const mineflayer = require('mineflayer');
 const fs = require('fs');
 const path = require('path');
-const { SocksProxyAgent } = require('socks-proxy-agent');
 const webInventory = require('mineflayer-web-inventory');
 const { pathfinder, Movements, goals: { GoalBlock } } = require('mineflayer-pathfinder');
 
@@ -23,44 +22,11 @@ let state = {
     cooldown: false
 };
 
-// 👉 Hàm đọc danh sách proxy từ thư mục /proxy
-function getProxyList() {
-    const proxyDir = path.join(__dirname, 'proxy');
-    const files = fs.readdirSync(proxyDir).filter(file => file.endsWith('.txt'));
-
-    return files.map(file => {
-        const content = fs.readFileSync(path.join(proxyDir, file), 'utf-8').trim();
-        return content; // Trả về dòng như "ip:port:user:pass"
-    });
-}
-
-// 👉 Lấy proxy ngẫu nhiên từ danh sách
-function getRandomProxy() {
-    const proxies = getProxyList();
-    if (proxies.length === 0) return null;
-    const random = Math.floor(Math.random() * proxies.length);
-    return proxies[random];
-}
-
 function createBot() {
-    const proxyString = getRandomProxy();
-
-    let agent = undefined;
-
-    if (proxyString) {
-        const [ip, port, user, pass] = proxyString.split(':');
-        const proxyUrl = `socks5://${user}:${pass}@${ip}:${port}`;
-        agent = new SocksProxyAgent(proxyUrl);
-        console.log(`🌐 Đang dùng proxy: ${ip}:${port}`);
-    } else {
-        console.log("⚠️ Không tìm thấy proxy. Kết nối trực tiếp.");
-    }
-
     bot = mineflayer.createBot({
         host: 'mc.luckyvn.com',
         username: 'Vanguard13',
         version: '1.18.2',
-        agent: agent,
     });
 
     bot.loadPlugin(pathfinder);
@@ -106,28 +72,20 @@ function createBot() {
             }, 2500);
         }
 
-
-
-
-          // Reset trạng thái khi vào sảnh
-  bot.on('respawn', () => {
-    menuOpened = false;
-    console.log('♻️ Đã reset trạng thái menu khi vào sảnh');
-    
-    // Đảm bảo bot cầm Clock khi vào sảnh
-    setTimeout(() => {
-      const clockSlot = bot.inventory.slots[36 + 4];
-      if (clockSlot?.name.includes('clock')) {
-        bot.setQuickBarSlot(4);
-        console.log('🔁 Đã cầm lại Clock sau khi vào sảnh');
-      }
-    }, 2000);
-  });
-
-
-
-
-        
+        // Reset trạng thái khi vào sảnh
+        bot.on('respawn', () => {
+            menuOpened = false;
+            console.log('♻️ Đã reset trạng thái menu khi vào sảnh');
+            
+            // Đảm bảo bot cầm Clock khi vào sảnh
+            setTimeout(() => {
+                const clockSlot = bot.inventory.slots[36 + 4];
+                if (clockSlot?.name.includes('clock')) {
+                    bot.setQuickBarSlot(4);
+                    console.log('🔁 Đã cầm lại Clock sau khi vào sảnh');
+                }
+            }, 2000);
+        });
 
         if (msg.includes('Chào mừng') && !state.warped) {
             state.warped = true;
@@ -152,20 +110,8 @@ function createBot() {
         }
     });
 
-    bot.on('end', () => {
-        console.log("♻️ Tự động kết nối lại sau 5s...");
-        setTimeout(createBot, 5000);
-    });
-
     process.stdin.on('data', data => {
         const input = data.toString().trim();
-
-        if (input === '#reset') {
-            console.log("🔄 Đang khởi động lại bot...");
-            bot.end();
-            return;
-        }
-
         if (!state.cooldown) {
             bot.chat(input);
             console.log(`⌨ Gửi lệnh: ${input}`);

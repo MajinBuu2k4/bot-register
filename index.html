@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bot Configuration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            flex: 1;
+        }
+        .save-button {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .save-button:hover {
+            background-color: #45a049;
+        }
+        .run-button {
+            background-color: #2196F3;
+            color: white;
+        }
+        .run-button:hover {
+            background-color: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bot Configuration</h1>
+        <form id="configForm">
+            <div class="form-group">
+                <label for="username">Bot Username:</label>
+                <select id="username" required>
+                    <!-- Will be populated by JavaScript -->
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="positionModule">Position Module:</label>
+                <select id="positionModule" required>
+                    <!-- Will be populated by JavaScript -->
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="coordinates">Coordinates (x, y, z):</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="number" id="coordX" placeholder="X" required style="flex: 1;">
+                    <input type="number" id="coordY" placeholder="Y" required style="flex: 1;">
+                    <input type="number" id="coordZ" placeholder="Z" required style="flex: 1;">
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button type="submit" class="save-button">Save Configuration</button>
+                <button type="button" class="run-button" id="runBot">Run Bot</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        const { exec } = require('child_process');
+        const path = require('path');
+        
+        // Populate username options
+        const usernameSelect = document.getElementById('username');
+        for (let i = 14; i <= 100; i++) {
+            const option = document.createElement('option');
+            option.value = `Vanguard${i}`;
+            option.textContent = `Vanguard${i}`;
+            usernameSelect.appendChild(option);
+        }
+        
+        // Load current values
+        const fs = require('fs');
+        const botRegisterContent = fs.readFileSync('bot-register.js', 'utf8');
+        const usernameMatch = botRegisterContent.match(/username: ['"]Vanguard(\d+)['"]/);
+        
+        if (usernameMatch) document.getElementById('username').value = `Vanguard${usernameMatch[1]}`;
+        
+        // Load position modules
+        async function loadPositionModules() {
+            const modules = await ipcRenderer.invoke('get-position-modules');
+            const positionModuleSelect = document.getElementById('positionModule');
+            modules.forEach(module => {
+                const option = document.createElement('option');
+                option.value = module;
+                option.textContent = module.replace('.js', '');
+                positionModuleSelect.appendChild(option);
+            });
+        }
+        loadPositionModules();
+        
+        // Handle form submission
+        document.getElementById('configForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const config = {
+                username: document.getElementById('username').value,
+                positionModule: document.getElementById('positionModule').value,
+                coordinates: {
+                    x: document.getElementById('coordX').value,
+                    y: document.getElementById('coordY').value,
+                    z: document.getElementById('coordZ').value
+                }
+            };
+            
+            try {
+                await ipcRenderer.invoke('save-config', config);
+                alert('Configuration saved successfully!');
+            } catch (error) {
+                alert('Error saving configuration: ' + error.message);
+            }
+        });
+
+        // Handle run button click
+        document.getElementById('runBot').addEventListener('click', () => {
+            const vanguardPath = path.join(__dirname, 'Vanguard.lnk');
+            exec(`start "" "${vanguardPath}"`, (error) => {
+                if (error) {
+                    alert('Error running bot: ' + error.message);
+                }
+            });
+        });
+
+        // Add event listener to update coordinates when position module changes
+        const positionModuleSelect = document.getElementById('positionModule');
+        positionModuleSelect.addEventListener('change', async () => {
+            const selectedModule = positionModuleSelect.value;
+            const coordinates = await ipcRenderer.invoke('get-coordinates', selectedModule);
+
+            if (coordinates) {
+                document.getElementById('coordX').value = coordinates.x;
+                document.getElementById('coordY').value = coordinates.y;
+                document.getElementById('coordZ').value = coordinates.z;
+            } else {
+                document.getElementById('coordX').value = '';
+                document.getElementById('coordY').value = '';
+                document.getElementById('coordZ').value = '';
+            }
+        });
+    </script>
+</body>
+</html>
